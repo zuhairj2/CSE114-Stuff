@@ -1,0 +1,17 @@
+-- Welcome to Elsa!
+
+eval example_1 :
+  (\f -> f (\x -> x)) (\x -> x)
+  =b> (\x -> x) (\x -> x) -- a substitution step
+  =a> (\x -> x) (\y -> y) -- a renaming step
+  =b> (\y -> y)           -- a substitution step
+
+-- eval bad_example :
+--   (\f -> f (\x -> x)) (\x -> x)
+--   =b> (\x -> x) (\x -> x) -- a substitution step
+--   =a> (\x -> x) (\x -> y) -- an incorrect renaming step
+
+eval example_2 :
+  (\x -> (\y -> x)) (\z -> z)
+  =b> (\y -> (\z -> z))
+  

@@ -1,0 +1,145 @@
+-- Welcome to CSE114A lecture 5!
+
+-- Agenda:
+
+-- -- Addition (again)
+-- -- Quiz/break
+-- -- Non-terminating lambda calculus programs
+-- -- The Y combinator
+-- -- Writing recursive programs with lambda calculus
+-- -- (If time) lambda calculus as a naturally parallel model of computation
+
+let ZERO  = \f x -> x
+let ONE   = \f x -> f x
+let TWO   = \f x -> f (f x)
+let THREE = \f x -> f (f (f x))
+
+let INC  = \n -> \f x -> f (n f x)
+
+let ADD  = \n m -> n INC m
+
+let OMEGA = (\x -> x x) (\x -> x x)
+
+let Y     = \f -> (\x -> f (x x)) (\x -> f (x x))
+
+-- Triangular numbers?
+{-
+T(0) = 0           (base case)
+T(n) = n + T(n-1)  (inductive case)
+-}
+-- let TRI   = \n -> ITE (ISZ n)
+--                       ZERO
+--                       (ADD n (TRI (DECR n)))
+let TRI1   = \rec -> \n -> ITE (ISZ n) ZERO (ADD n (rec (DECR n)))
+let TRI = Y TRI1
+
+eval add_two_one :
+  ADD TWO ONE
+  =d> (\n m -> n INC m) TWO ONE
+  =b> (\m -> TWO INC m) ONE
+  =b> TWO INC ONE
+  =d> (\f x -> f (f x)) INC ONE
+  =b> (\x -> INC (INC x)) ONE
+  =b> INC (INC ONE)
+  =d> (\n -> \f x -> f (n f x)) (INC ONE) -- Expand the first INC (but see below!)
+  =b> \f x -> f ((INC ONE) f x)
+  =d> \f x -> f (((\n -> \f x -> f (n f x)) ONE) f x)
+  =b> \f x -> f ((\f x -> f (ONE f x)) f x)
+  =d> \f x -> f ((\f x -> f ((\f x -> f x) f x)) f x)
+  =b> \f x -> f ((\f x -> f ((\x -> f x) x)) f x)
+  =b> \f x -> f ((\f x -> f (f x)) f x)
+  =b> \f x -> f ((\x -> f (f x)) x)
+  =b> \f x -> f (f (f x))
+  =d> THREE
+
+-- `ADD n m` will start from `m` and increment it `n` times.
+
+-- Non-terminating expressions
+
+-- eval omega :
+--   OMEGA
+--   =d> (\x -> x x) (\x -> x x)
+--   =b> (\x -> x x) (\x -> x x)
+--   =b> (\x -> x x) (\x -> x x)
+
+-- eval y :
+--   Y
+--   =d> \f -> (\x -> f (x x)) (\x -> f (x x))
+--   =b> \f -> f ((\x -> f (x x)) (\x -> f (x x)))
+--   =b> \f -> f (f ((\x -> f (x x)) (\x -> f (x x))))
+--   =b> \f -> f (f (f ((\x -> f (x x)) (\x -> f (x x)))))
+
+-- writing recursive programs with lambda calculus
+
+-- Triangular numbers
+
+-- The triangular number T(n) is the sum
+-- of all the natural numbers up to n.
+
+{-
+T(0) = 0
+T(1) = 1 + 0 = 1
+T(2) = 2 + 1 + 0 = 3
+T(3) = 3 + 2 + 1 + 0 = 6
+...and so on.
+
+T(0) = 0           (base case)
+T(n) = n + T(n-1)  (inductive case)
+-}
+
+eval tri_0 :
+  TRI ZERO
+  =d> (Y TRI1) ZERO
+  =d> ((\f -> (\x -> f (x x)) (\x -> f (x x))) TRI1) ZERO
+  =b> ((\x -> TRI1 (x x)) (\x -> TRI1 (x x))) ZERO
+  =d> ((\x -> (\rec -> \n -> ITE (ISZ n) ZERO (ADD n (rec (DECR n)))) (x x)) (\x -> TRI1 (x x))) ZERO
+  =b> ((\x -> (\n -> ITE (ISZ n) ZERO (ADD n ((x x) (DECR n))))) (\x -> TRI1 (x x))) ZERO
+  =b> (\n -> ITE (ISZ n) ZERO (ADD n (((\x -> TRI1 (x x)) (\x -> TRI1 (x x))) (DECR n)))) ZERO
+  =b> ITE (ISZ ZERO) ZERO (ADD ZERO (((\x -> TRI1 (x x)) (\x -> TRI1 (x x))) (DECR ZERO)))
+  =*> (ISZ ZERO) ZERO (ADD ZERO (((\x -> TRI1 (x x)) (\x -> TRI1 (x x))) (DECR ZERO)))
+  =~> ZERO
+
+eval tri_1 : 
+  TRI ONE =~> ONE
+
+eval tri_2 :
+  TRI TWO =~> THREE
+
+eval tri_3 :
+  TRI THREE =~> \f x -> f (f (f (f (f (f x))))) -- SIX
+
+{-
+
+The general recipe for writing a recursive function in lambda calculus:
+
+1. Write the function you wish you could write, with a recursive call
+2. Add an extra argument as the first argument to that function,
+   and replace the name of the recursively called function with that argument
+3. Pass the resulting function (the one with the extra argument) to `Y`
+4. Profit!
+
+-}
+
+-- Lambda calculus as a naturally parallel model of computation
+
+eval add_two_one_alt :
+  ADD TWO ONE
+  =d> (\n m -> n INC m) TWO ONE
+  =b> (\m -> TWO INC m) ONE
+  =b> TWO INC ONE
+  =d> (\f x -> f (f x)) INC ONE
+  =b> (\x -> INC (INC x)) ONE
+  =b> INC (INC ONE)
+  =d> INC ((\n -> \f x -> f (n f x)) ONE) -- Expand the second INC (but see above!)
+  =b> INC (\f x -> f (ONE f x))
+  =d> INC (\f x -> f ((\f x -> f x) f x)) 
+  =b> INC (\f x -> f ((\x -> f x) x)) 
+  =b> INC (\f x -> f (f x)) 
+  =d> INC TWO
+  =~> THREE
+
+-- Sometimes you will have an expression with two 
+-- completely non-overlapping redexes.
+eval non_overlapping :
+  ADD (INC ONE) (INC TWO)
+  =~> \f x -> f (f (f (f (f x))))

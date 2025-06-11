@@ -1,0 +1,161 @@
+-- Welcome to lecture 3!
+
+let TRUE  = \x y -> x
+let FALSE = \x y -> y
+let ITE   = \b x y -> b x y -- ITE stands for "if ... then ... else"
+let AND   = \b1 b2 -> ITE b1 b2 FALSE
+
+-- Church numerals
+-- The number N is encoded as a function that calls a function
+-- on an argument N times!
+let ZERO  = \f x -> x
+let ONE   = \f x -> f x
+let TWO   = \f x -> f (f x)
+let THREE = \f x -> f (f (f x))
+let FOUR  = \f x -> f (f (f (f x)))
+let FIVE  = \f x -> f (f (f (f (f x))))
+let SIX   = \f x -> f (f (f (f (f (f x)))))
+
+-- Call `f` on `x` one more time than `n` does
+let INC   = \n -> (\f x -> f (n f x))
+
+-- What about addition?
+-- One way to think about adding `n` and `m` is to take one of them, say, `n`,
+-- and increment it `m` times. (or increment `m` `n` times, doesn't matter)
+let ADD   = \n m -> n INC m
+
+
+-- Agenda: 
+
+-- - Recap lambda calculus syntax
+-- - Notational conventions
+-- - Redexes and normal form
+-- - How to encode things we want in lambda calculus:
+--   - Booleans (true and false values)
+--   - Boolean operators (and, or, not, ...)
+--   - Conditional expressions (if...then..else)
+-- - Break/quiz
+-- - More encodings:
+--   - numbers
+--   - incrementing numbers
+--   - adding numbers (if time)
+-- - Revisiting the beta rule
+--   - Avoiding variable capture
+
+-- Three syntactic forms: variables, function definitions, function calls
+
+-- e ::= x | \x -> e | e1 e2
+
+-- A function definition `\x -> e` is also called a *lambda abstraction*
+-- A function call `e1 e2` is also called an *application* (applying `e1` to `e2`)
+
+-- Notational conventions
+
+-- The body of a lambda abstraction extends as far right as possible:
+-- `\x -> m n` means `\x -> (m n)`, *not* `(\x -> m) n`.
+
+-- Applications are left-associative: `a b c` means `(a b) c`, not `a (b c)`
+
+-- If I write `f g h`, we can *think* of this as being a call to `f` with 
+-- arguments `g` and `h`.
+
+-- As a shorthand, instead of writing
+-- `\x -> (\y -> (\z -> e))`
+-- we can write
+-- `\x -> \y -> \z -> e`
+-- and then we can abbreviate *that* to
+-- `\x y z -> e`
+
+-- Putting this all together, instead of
+-- (((\x -> (\y -> (\z -> e))) g) h) q
+-- we can just write
+-- (\x y z -> e) g h q
+
+eval example_1 :
+  (\x y z -> e) g h q
+  =b> (\y z -> e) h q
+  =b> (\z -> e) q
+  =b> e
+
+-- What's a "redex"? It stands for "reducible expression".
+
+-- Anything that you can apply the beta rule to is a redex.
+
+-- For instance, in `(\x y z -> e) g h q`, the part `(\x y z -> e) g` is a redex.
+
+-- In general, an expression might have more than one (and you may encounter that
+-- as you do homework).
+
+-- (A redex always looks like `(\x -> e1) e2`, which is the left side of the beta rule.)
+
+-- An expression in *normal form* is one that has no redexes!
+
+-- Booleans
+
+-- if true then rainbow else sprinkles
+eval if_true : 
+  ITE TRUE rainbow sprinkles
+  =d> (\b x y -> b x y) TRUE rainbow sprinkles -- The =d> arrow is Elsa for "expand definitions"
+  =b> (\x y -> TRUE x y) rainbow sprinkles
+  =b> (\y -> TRUE rainbow y) sprinkles
+  =b> TRUE rainbow sprinkles
+  =d> (\x y -> x) rainbow sprinkles
+  =b> (\y -> rainbow) sprinkles
+  =b> rainbow
+
+eval if_false : 
+  ITE FALSE rainbow sprinkles
+  =d> (\b x y -> b x y) FALSE rainbow sprinkles
+  =b> (\x y -> FALSE x y) rainbow sprinkles
+  =b> (\y -> FALSE rainbow y) sprinkles
+  =b> FALSE rainbow sprinkles
+  =d> (\x y -> y) rainbow sprinkles
+  =b> (\y -> y) sprinkles
+  =b> sprinkles
+
+eval and_false_true :
+  AND FALSE TRUE
+  =d> (\b1 b2 -> ITE b1 b2 FALSE) FALSE TRUE
+  =b> (\b2 -> ITE FALSE b2 FALSE) TRUE
+  =b> ITE FALSE TRUE FALSE
+  =~> FALSE
+
+-- Numbers (in particular, natural numbers)
+
+eval inc_zero :
+  INC ZERO
+  =d> (\n -> (\f x -> f (n f x))) ZERO
+  =b> \f x -> f (ZERO f x)
+  =d> \f x -> f ((\f x -> x) f x)
+  =b> \f x -> f ((\x -> x) x)
+  =b> \f x -> f x
+  =d> ONE
+
+eval inc_two :
+  INC TWO
+  =d> (\n -> (\f x -> f (n f x))) TWO
+  =b> \f x -> f (TWO f x)
+  =d> \f x -> f ((\f x -> f (f x)) f x)
+  =b> \f x -> f ((\x -> f (f x)) x)
+  =b> \f x -> f (f (f x))
+  =d> THREE
+
+eval add_two_three :
+  ADD TWO THREE 
+  =~> FIVE
+
+-- Avoiding variable capture
+
+-- (\x -> (\y -> x)) y
+
+-- What happens when we take a beta step?
+-- If we did it in a naive way...
+
+-- we'd get 
+
+-- (\x -> (\y -> x)) y
+-- =b> \y -> y
+
+-- That doesn't seem right!!
+-- The problem here is that `y` in the argument has been *captured* by the
+-- binder `\y`!
